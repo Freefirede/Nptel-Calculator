@@ -9,6 +9,8 @@
  */
 
 import type { Course } from "@/types/course";
+import type { NptelCatalogCourse } from "@/types/nptel-catalog";
+import catalogCourses from "@/data/nptel-engineering-courses.json";
 
 // ─── Shared certificate rules (standard NPTEL pattern) ───────────────────────
 
@@ -69,7 +71,7 @@ const strictCertRules = [
 
 // ─── Course definitions ───────────────────────────────────────────────────────
 
-export const COURSES: Course[] = [
+const CURATED_COURSES: Course[] = [
   // ── Computer Science ──────────────────────────────────────────────────────
 
   {
@@ -399,3 +401,62 @@ export const COURSES: Course[] = [
     },
   },
 ];
+
+const officialCatalogCourses = catalogCourses as NptelCatalogCourse[];
+
+const FALLBACK_SOURCE_NOTE =
+  "Default fallback scoring rule generated from the official July 2026 SWAYAM/NPTEL catalog entry.";
+
+function parseDurationWeeks(duration: string): number {
+  const match = duration.match(/\d+/);
+  return match ? Math.max(1, Number(match[0])) : 8;
+}
+
+function getBestAssignments(totalAssignments: number): number {
+  return Math.max(1, Math.min(totalAssignments, Math.round(totalAssignments * 0.67)));
+}
+
+const generatedCatalogCourses: Course[] = officialCatalogCourses.map((catalogCourse) => {
+  const totalAssignments = parseDurationWeeks(catalogCourse.durationWeeks);
+
+  return {
+    id: catalogCourse.id,
+    courseCode: catalogCourse.id,
+    courseName: catalogCourse.courseName,
+    institute: catalogCourse.institute,
+    instructor: catalogCourse.instructor,
+    durationWeeks: totalAssignments,
+    description: `${catalogCourse.courseType} ${catalogCourse.courseLevel} course from the official NPTEL catalog.`,
+    courseUrl: catalogCourse.courseUrl,
+    discipline: catalogCourse.discipline,
+    lastVerifiedAt: "2026-07-01",
+    source: "Official SWAYAM/NPTEL July 2026 catalog",
+    scoringRule: {
+      id: `rule-${catalogCourse.id}`,
+      courseId: catalogCourse.id,
+      assignmentWeight: 0.25,
+      examWeight: 0.75,
+      totalAssignments,
+      bestAssignments: getBestAssignments(totalAssignments),
+      minimumAssignmentScore: 40,
+      minimumExamScore: 40,
+      minimumFinalScore: 40,
+      assignmentMaxScore: 100,
+      examMaxScore: 100,
+      certificateRules: strictCertRules,
+      metadata: {
+        source: "temporary-fallback",
+        status: "fallback",
+        semester: "Jul-Dec 2026",
+        verificationUrl: catalogCourse.courseUrl,
+        notes: FALLBACK_SOURCE_NOTE,
+      },
+    },
+  };
+});
+
+export const COURSES: Course[] = Array.from(
+  new Map(
+    [...generatedCatalogCourses, ...CURATED_COURSES].map((course) => [course.id, course])
+  ).values()
+);
